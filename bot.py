@@ -168,7 +168,7 @@ async def post_init(application):
     await application.bot.set_my_commands([
         BotCommand("start", "القائمة الرئيسية 🏠"),
         BotCommand("guide", "توجيه وطريقة استخدام البوت 🧭"),
-        BotCommand("lessons", "عرض موادي ودروسي 📚"),
+        BotCommand("lessons", "عرض المواد 📚"),
         BotCommand("tasks", "المهام اليومية 📅"),
         BotCommand("help", "مساعدة ℹ️"),
     ])
@@ -232,7 +232,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_first_time = data[0].get("welcomed") == 0
 
     keyboard = [
-        [InlineKeyboardButton("📚 عرض موادي ودروسي", callback_data="show_subjects")],
+        [InlineKeyboardButton("📚 عرض المواد", callback_data="show_subjects")],
         [InlineKeyboardButton("📅 المهام اليومية", callback_data="show_tasks")],
         [InlineKeyboardButton("🧭 التوجيه وطريقة الاستخدام", callback_data="show_guide")],
         [
@@ -258,7 +258,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         welcome_text = (
             f"👋 أهلاً بك يا {first_name} في بوت BAC 2027 المطور!\n\n"
             "📌 **طريقة استخدام البوت:**\n"
-            "• انقر على 'عرض موادي ودروسي' لإدارة جدولك، دروسك، وملاحظات كل مادة.\n"
+            "• انقر على 'عرض المواد' لإدارة جدولك، دروسك، وملاحظات كل مادة.\n"
             "• تنظيم خطتك ودراستك اليومية عبر 'المهام اليومية'.\n\n"
             "اختر من القائمة أدناه للبدء:"
         )
@@ -303,15 +303,15 @@ async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 GUIDE_TEXT = (
     "🧭 توجيه — طريقة استخدام بوت OTA / Bac2027\n\n"
     "🏠 القائمة الرئيسية:\n"
-    "• 📚 عرض موادي ودروسي: لإضافة المواد وتنظيم فروعها ودروسها وملاحظاتها.\n"
+    "• 📚 عرض المواد: لإضافة المواد وتنظيم وحداتها التعليمية ودروسها وملاحظاتها.\n"
     "• 📅 المهام اليومية: لإضافة المهام وإدارتها وعرض المنجزة والمؤجلة.\n"
     "• 🧭 التوجيه: لقراءة هذا الدليل.\n"
     "• 💬 مراسلة المطور: لاقتراح ميزة أو الإبلاغ عن مشكلة.\n\n"
     "📚 المواد والدروس:\n"
     "1. اضغط «إضافة مادة جديدة» ثم أرسل اسم المادة.\n"
-    "2. افتح المادة لإضافة الفروع أو إدارة ملاحظاتها، أو حذف المادة.\n"
-    "3. افتح «الفروع والدروس» ثم أضف فرعًا أو افتحه.\n"
-    "4. داخل الفرع اضغط «إضافة درس جديد»، أرسل عنوانه، ثم أرسل محتواه.\n"
+    "2. افتح المادة لإضافة الوحدات التعليمية أو إدارة ملاحظاتها، أو حذف المادة.\n"
+    "3. افتح «الوحدات التعليمية» ثم أضف وحدة أو افتحها.\n"
+    "4. داخل الوحدة اضغط «إضافة درس جديد»، أرسل عنوانه، ثم أرسل محتواه.\n"
     "5. يمكن أن يكون المحتوى نصًا أو رابط HTTP/HTTPS أو صورة أو فيديو أو ملفًا أو صوتًا/رسالة صوتية أو رسومًا متحركة أو ملصقًا أو مرفقًا مدعومًا من تيليجرام.\n"
     "6. افتح الدرس لعرض محتواه، وتعديل عنوانه، أو الرجوع إلى قائمة الدروس.\n"
     "7. من «ملاحظات هذه المادة» يمكنك إضافة ملاحظة أو فتح ملاحظة محفوظة أو حذفها.\n\n"
@@ -465,7 +465,7 @@ async def show_subjects_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
             subjects = []
         local_cache["subjects"][user_id] = subjects
 
-    text = "📚 قائمة موادي الدراسية:\nاختر المادة لتصفح فروعها، ملاحظاتها أو إدارتها:"
+    text = "📚 قائمة موادي الدراسية:\nاختر المادة لتصفح وحداتها التعليمية، ملاحظاتها أو إدارتها:"
     keyboard = []
     if subjects:
         for item in subjects:
@@ -494,7 +494,7 @@ async def show_subject_options(
     keyboard = [
         [
             InlineKeyboardButton(
-                "📂 الفروع والدروس", callback_data=f"show_sec_list|{subject}"
+                "📂 الوحدات التعليمية", callback_data=f"show_sec_list|{subject}"
             )
         ],
         [
@@ -545,13 +545,13 @@ async def show_sections_menu_direct(update, context, user_id, subject):
 
     keyboard = []
     if sections:
-        text = f"📚 مادة: {subject}\nاختر الفرع المطلوب:"
+        text = f"📚 مادة: {subject}\nاختر الوحدة المطلوبة:"
         for item in sections:
             sec = item.get("section_name")
             keyboard.append([
-                InlineKeyboardButton(f"📂 فرع: {sec}", callback_data=f"sec|{subject}|{sec}"),
+                InlineKeyboardButton(f"📂 وحدة: {sec}", callback_data=f"sec|{subject}|{sec}"),
                 InlineKeyboardButton(
-                    "حذف الفرع 🗑️", callback_data=f"delsec|{subject}|{sec}"
+                    "حذف الوحدة 🗑️", callback_data=f"delsec|{subject}|{sec}"
                 ),
             ])
     else:
@@ -559,7 +559,7 @@ async def show_sections_menu_direct(update, context, user_id, subject):
 
     keyboard.append([
         InlineKeyboardButton(
-            "➕ إضافة فرع جديد", callback_data=f"addsec|{subject}"
+            "➕ إضافة وحدة جديدة", callback_data=f"addsec|{subject}"
         )
     ])
     keyboard.append(
@@ -600,7 +600,7 @@ async def show_lessons_menu_direct(update, context, user_id, subject, section):
 
     keyboard = []
     if lessons:
-        text = f"📂 مادة: {subject} ➔ فرع: {section}\nقائمة الدروس المحفوظة:"
+        text = f"📂 مادة: {subject} ➔ وحدة: {section}\nقائمة الدروس المحفوظة:"
         for item in lessons:
             lesson_id = item.get("id")
             title = item.get("title")
@@ -624,7 +624,7 @@ async def show_lessons_menu_direct(update, context, user_id, subject, section):
                 InlineKeyboardButton("حذف 🗑️", callback_data=f"dl|{lesson_id}"),
             ])
     else:
-        text = f"📂 مادة: {subject} ➔ فرع: {section}\n❌ أنت لا تملك أي دروس في هذا الفرع."
+        text = f"📂 مادة: {subject} ➔ وحدة: {section}\n❌ أنت لا تملك أي دروس في هذه الوحدة."
 
     keyboard.append([
         InlineKeyboardButton(
@@ -937,7 +937,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_subjects_menu(update, context)
         return
 
-    # ── حالة: إضافة فرع ──
+    # ── حالة: إضافة وحدة ──
     if state == "waiting_for_section":
         subject = temp_data
         sec_name = text
@@ -956,7 +956,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if check.data:
             await update.message.reply_text(
-                f"⚠️ الفرع '{sec_name}' موجود مسبقاً في هذه المادة!"
+                f"⚠️ الوحدة '{sec_name}' موجود مسبقاً في هذه المادة!"
             )
         else:
             try:
@@ -972,7 +972,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             clear_user_cache(user_id)
             await update.message.reply_text(
-                f"✅ تم إضافة الفرع '{sec_name}' لمادة [{subject}] بنجاح!"
+                f"✅ تم إضافة الوحدة '{sec_name}' لمادة [{subject}] بنجاح!"
             )
         context.user_data.pop("state", None)
         context.user_data.pop("temp_data", None)
@@ -1235,7 +1235,7 @@ def request_openrouter(user_message, OPENROUTER_API_KEY):
                     "content": (
                         "أنت مساعد دراسي داخل بوت Telegram اسمه OTA / Bac2027. أجب عن أسئلة المستخدم الدراسية بوضوح وبالعربية ما لم يطلب لغة أخرى.\n"
                         "مهم جدًا: لا تذكر إلا وظائف البوت الموجودة فعلًا، ولا تخترع أوامر أو ميزات ولا تدّعِ أن أمرًا ما يعمل لمجرد أنه يبدو مفيدًا.\n"
-                        "الوظائف الموجودة فعلًا: /start لفتح القائمة الرئيسية، /lessons لعرض المواد والدروس، /tasks لعرض المهام اليومية، و/help لعرض المساعدة. عبر الأزرار التفاعلية يمكن للمستخدم إضافة المواد والفروع والدروس النصية أو الوسائط، إضافة ملاحظات للمواد، وعرض هذه العناصر وتعديل عنوان الدرس وحذف العناصر، وكذلك إضافة المهام وتغيير حالتها وحذفها. يمكن للمستخدم إرسال سؤال دراسي عادي إلى خدمة الذكاء الاصطناعي إذا كانت الخدمة مفعّلة.\n"
+                        "الوظائف الموجودة فعلًا: /start لفتح القائمة الرئيسية، /lessons لعرض المواد والدروس، /tasks لعرض المهام اليومية، و/help لعرض المساعدة. عبر الأزرار التفاعلية يمكن للمستخدم إضافة المواد والوحدات التعليمية النصية أو الوسائط، إضافة ملاحظات للمواد، وعرض هذه العناصر وتعديل عنوان الدرس وحذف العناصر، وكذلك إضافة المهام وتغيير حالتها وحذفها. يمكن للمستخدم إرسال سؤال دراسي عادي إلى خدمة الذكاء الاصطناعي إذا كانت الخدمة مفعّلة.\n"
                         "لا تقل إن البوت يدعم أوامر مثل /add_subject أو /add_branch أو /reorder_subjects أو /list_subjects أو /mark_review أو /summarize أو /mindmap أو /quiz أو /add_task أو /today أو /repeat_task أو /progress_report أو /done_task؛ هذه الأوامر غير موجودة في الكود الحالي.\n"
                         "لا تعد المستخدم بتذكيرات مجدولة أو مراجعة بالتكرار المتباعد أو تقارير أسبوعية أو جدول تلقائي أو ترتيب المواد بالسحب والإفلات أو تحديد تواريخ وأولويات للمهام؛ هذه الميزات غير مطبقة حاليًا.\n"
                         "إذا سأل المستخدم عن أمر أو ميزة غير متوفرة، قل بصراحة إنها غير متاحة حاليًا، ولا تخترع طريقة لاستخدامها، ثم وجّهه إلى المطور @ota_m_pro ليقترح الميزة المطلوبة. ولشرح طريقة استخدام البوت، وجّهه إلى الأمر /guide. لا تقل إنك حفظت مادة أو درسًا أو مهمة؛ الحفظ يتم فقط عندما ينفذ المستخدم الإجراء المناسب داخل البوت وتؤكده واجهة البوت.\n"
@@ -1534,7 +1534,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_subjects_menu(update, context)
         return
 
-    # ── حذف فرع ──
+    # ── حذف وحدة ──
     if data.startswith("delsec|"):
         parts = data.split("|")
         subject = parts[1]
@@ -1563,7 +1563,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_sections_menu_direct(update, context, user_id, subject)
         return
 
-    # ── فتح فرع ──
+    # ── فتح وحدة ──
     if data.startswith("sec|"):
         parts = data.split("|")
         subject = parts[1]
@@ -1571,13 +1571,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_lessons_menu_direct(update, context, user_id, subject, section)
         return
 
-    # ── إضافة فرع ──
+    # ── إضافة وحدة ──
     if data.startswith("addsec|"):
         subject = data.split("|", 1)[1]
         context.user_data["state"] = "waiting_for_section"
         context.user_data["temp_data"] = subject
         await query.message.edit_text(
-            f"✍️ أرسل الآن اسم الفرع الجديد الذي تريد إضافته لمادة [{subject}]:"
+            f"✍️ أرسل الآن اسم الوحدة الجديدة الذي تريد إضافته لمادة [{subject}]:"
         )
         return
 
