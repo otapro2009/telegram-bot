@@ -311,9 +311,9 @@ GUIDE_TEXT = (
     "1. اضغط «إضافة مادة جديدة» ثم أرسل اسم المادة.\n"
     "2. افتح المادة لإضافة الوحدات التعليمية أو إدارة ملاحظاتها، أو حذف المادة.\n"
     "3. افتح «الوحدات التعليمية» ثم أضف وحدة أو افتحها.\n"
-    "4. داخل الوحدة اضغط «إضافة درس جديد»، أرسل عنوانه، ثم أرسل محتواه.\n"
-    "5. يمكن أن يكون المحتوى نصًا أو رابط HTTP/HTTPS أو صورة أو فيديو أو ملفًا أو صوتًا/رسالة صوتية أو رسومًا متحركة أو ملصقًا أو مرفقًا مدعومًا من تيليجرام.\n"
-    "6. افتح الدرس لعرض محتواه، وتعديل عنوانه، أو الرجوع إلى قائمة الدروس.\n"
+    "4. داخل الوحدة اضغط «إضافة درس جديد» واكتب عنوان الدرس.\n"
+    "5. بعد إنشاء الدرس، اضغط «إضافة ملحق» لإرفاق عدة مستندات أو صور أو فيديوهات، ويمكنك تكرار ذلك أكثر من مرة.\n"
+    "6. افتح الدرس لاحقًا للوصول إلى ملحقاته، أو تعديل عنوانه، أو الرجوع إلى قائمة الدروس.\n"
     "7. من «ملاحظات هذه المادة» يمكنك إضافة ملاحظة أو فتح ملاحظة محفوظة أو حذفها.\n\n"
     "📅 المهام اليومية:\n"
     "• اضغط «إضافة مهمة جديدة» ثم أرسل نص المهمة كاملًا.\n"
@@ -576,6 +576,54 @@ async def show_sections_menu_direct(update, context, user_id, subject):
             text=text,
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
+
+
+async def get_lesson_attachments(user_id, lesson_id):
+    """Fetch attachments belonging to one of the current user's lessons."""
+    try:
+        result = await sb_execute(
+            lambda: supabase.table("lesson_attachments")
+            .select("id, content_type, file_id, caption, created_at")
+            .eq("user_id", user_id)
+            .eq("lesson_id", lesson_id)
+            .order("id")
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        logger.exception("Could not fetch lesson attachments")
+        return []
+
+
+def lesson_detail_keyboard(lesson_id, subject, section, attachments=None):
+    attachments = attachments or []
+    rows = []
+    labels = {
+        "document": "📄", "video": "🎥", "photo": "🖼️", "audio": "🎧",
+        "voice": "🎙️", "video_note": "⭕", "animation": "🎞️", "sticker": "🧩",
+    }
+    for index, attachment in enumerate(attachments, 1):
+        kind = labels.get(attachment.get("content_type"), "📎")
+        caption = (attachment.get("caption") or "").strip()
+        label = f"{kind} ملحق {index}" + (f": {caption[:24]}" if caption else "")
+        rows.append([InlineKeyboardButton(label, callback_data=f"openatt|{attachment['id']}|{lesson_id}")])
+    rows.extend([
+        [InlineKeyboardButton("➕ إضافة ملحق", callback_data=f"addatt|{lesson_id}")],
+        [InlineKeyboardButton("✏️ تعديل اسم الدرس", callback_data=f"edit_lesson|{lesson_id}")],
+        [InlineKeyboardButton("🔙 رجوع للدروس", callback_data=f"sec|{subject}|{section}")],
+    ])
+    return InlineKeyboardMarkup(rows)
+
+
+async def show_lesson_setup_prompt(message, lesson_id, title):
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ إضافة ملحق", callback_data=f"addatt|{lesson_id}")],
+        [InlineKeyboardButton("✅ إنهاء وحفظ الدرس", callback_data=f"finishlesson|{lesson_id}")],
+    ])
+    await message.reply_text(
+        f"✅ تم إنشاء درس «{title}».\n\nيمكنك الآن إضافة عدة ملفات أو صور أو فيديوهات مرتبطة به، أو إنهاء الإضافة. ",
+        reply_markup=keyboard,
+    )
 
 
 async def show_lessons_menu_direct(update, context, user_id, subject, section):
@@ -981,13 +1029,39 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── حالة: عنوان الدرس ──
     if state and state.startswith("waiting_for_lesson_title_"):
-        parts = temp_data.split("|")
-        subject, section = parts[0], parts[1]
+        parts = temp_data.split("|", 1)
+        if len(parts) != 2:
+            context.user_data.pop("state", None)
+            context.user_data.pop("temp_data", None)
+            await update.message.reply_text("⚠️ تعذر تحديد المادة والوحدة. حاول إضافة الدرس من جديد.")
+            return
+        subject, section = parts
         title = text
-        context.user_data["state"] = f"waiting_for_lesson_content_{subject}|{section}|{title}"
-        context.user_data["temp_data"] = title
+        try:
+            result = await sb_execute(
+                lambda: supabase.table("lessons").insert({
+                    "user_id": user_id,
+                    "subject_name": subject,
+                    "section_name": section,
+                    "title": title,
+                    "content_type": "text",
+                    "file_or_text": "",
+                }).select("id").execute()
+            )
+            lesson_id = result.data[0]["id"]
+        except Exception:
+            logger.exception("Could not create lesson")
+            await update.message.reply_text("❌ لم نتمكن من إنشاء الدرس. حاول مجددًا بعد قليل.")
+            return
+        context.user_data.pop("state", None)
+        context.user_data.pop("temp_data", None)
+        clear_user_cache(user_id)
+        await show_lesson_setup_prompt(update.message, lesson_id, title)
+        return
+
+    if state and state.startswith("waiting_for_lesson_attachment_"):
         await update.message.reply_text(
-            f"✍️ أرسل الآن محتوى الدرس '{title}' (أو أرسل صورة/فيديو/ملف مباشرة):"
+            "📎 أرسل صورة أو فيديو أو مستند كملحق، أو اضغط «إنهاء وحفظ الدرس» من أزرار الدرس."
         )
         return
 
@@ -1157,6 +1231,47 @@ async def handle_photo_document(update: Update, context: ContextTypes.DEFAULT_TY
     elif message.sticker:
         file_id, c_type = message.sticker.file_id, "sticker"
     else:
+        return
+
+    # ── حفظ ملحق داخل درس موجود ──
+    if state and state.startswith("waiting_for_lesson_attachment_"):
+        try:
+            lesson_id = int(state.replace("waiting_for_lesson_attachment_", ""))
+            lesson_check = await sb_execute(
+                lambda: supabase.table("lessons")
+                .select("id, title, subject_name, section_name")
+                .eq("id", lesson_id).eq("user_id", user_id).execute()
+            )
+            if not lesson_check.data:
+                context.user_data.pop("state", None)
+                await update.message.reply_text("⚠️ لم يتم العثور على هذا الدرس.")
+                return
+            lesson = lesson_check.data[0]
+            caption = message.caption or ""
+            await sb_execute(
+                lambda: supabase.table("lesson_attachments").insert({
+                    "user_id": user_id,
+                    "lesson_id": lesson_id,
+                    "content_type": c_type,
+                    "file_id": file_id,
+                    "caption": caption,
+                }).execute()
+            )
+        except Exception:
+            logger.exception("Could not save lesson attachment")
+            await update.message.reply_text(
+                "❌ تعذر حفظ الملحق. تأكد من تنفيذ ملف ترحيل قاعدة البيانات ثم حاول مجددًا."
+            )
+            return
+        attachments = await get_lesson_attachments(user_id, lesson_id)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ إضافة ملحق آخر", callback_data=f"addatt|{lesson_id}")],
+            [InlineKeyboardButton("✅ إنهاء وحفظ الدرس", callback_data=f"finishlesson|{lesson_id}")],
+        ])
+        await update.message.reply_text(
+            f"✅ تمت إضافة الملحق إلى درس «{lesson.get('title')}».\n📎 عدد الملحقات: {len(attachments)}",
+            reply_markup=keyboard,
+        )
         return
 
     # ── إضافة درس بوسائط (من حالة العنوان أو المحتوى) ──
@@ -1594,6 +1709,88 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── إضافة ملحق إلى درس ──
+    if data.startswith("addatt|"):
+        try:
+            lesson_id = int(data.split("|", 1)[1])
+            check = await sb_execute(
+                lambda: supabase.table("lessons")
+                .select("id, title")
+                .eq("id", lesson_id).eq("user_id", user_id).execute()
+            )
+        except Exception:
+            logger.exception("Could not verify lesson before adding attachment")
+            check = type("obj", (object,), {"data": []})()
+        if not check.data:
+            await query.message.reply_text("⚠️ لم يتم العثور على هذا الدرس.")
+            return
+        context.user_data["state"] = f"waiting_for_lesson_attachment_{lesson_id}"
+        context.user_data["temp_data"] = str(lesson_id)
+        await query.message.reply_text(
+            f"📎 أرسل الآن الملحق الخاص بدرس «{check.data[0].get('title')}».\n"
+            "يمكنك إرسال صورة أو فيديو أو مستند، ثم إضافة ملحقات أخرى."
+        )
+        return
+
+    # ── إنهاء إضافة ملحقات الدرس ──
+    if data.startswith("finishlesson|"):
+        try:
+            lesson_id = int(data.split("|", 1)[1])
+            result = await sb_execute(
+                lambda: supabase.table("lessons")
+                .select("id, title, subject_name, section_name")
+                .eq("id", lesson_id).eq("user_id", user_id).execute()
+            )
+        except Exception:
+            logger.exception("Could not finish lesson setup")
+            result = type("obj", (object,), {"data": []})()
+        if not result.data:
+            await query.message.reply_text("⚠️ لم يتم العثور على هذا الدرس.")
+            return
+        lesson = result.data[0]
+        context.user_data.pop("state", None)
+        context.user_data.pop("temp_data", None)
+        clear_user_cache(user_id)
+        await show_lessons_menu_direct(update, context, user_id, lesson["subject_name"], lesson["section_name"])
+        return
+
+    # ── فتح ملحق منفرد ──
+    if data.startswith("openatt|"):
+        try:
+            _, attachment_id, lesson_id = data.split("|", 2)
+            attachment_id, lesson_id = int(attachment_id), int(lesson_id)
+            result = await sb_execute(
+                lambda: supabase.table("lesson_attachments")
+                .select("content_type, file_id, caption")
+                .eq("id", attachment_id).eq("lesson_id", lesson_id).eq("user_id", user_id).execute()
+            )
+        except Exception:
+            logger.exception("Could not load lesson attachment")
+            result = type("obj", (object,), {"data": []})()
+        if not result.data:
+            await query.message.reply_text("⚠️ تعذر العثور على هذا الملحق.")
+            return
+        attachment = result.data[0]
+        kind, file_id = attachment.get("content_type"), attachment.get("file_id")
+        caption = attachment.get("caption") or None
+        senders = {
+            "photo": context.bot.send_photo, "video": context.bot.send_video,
+            "document": context.bot.send_document, "audio": context.bot.send_audio,
+            "voice": context.bot.send_voice, "animation": context.bot.send_animation,
+            "video_note": context.bot.send_video_note, "sticker": context.bot.send_sticker,
+        }
+        try:
+            if kind in senders:
+                kwargs = {"chat_id": user_id, "caption": caption} if kind not in ("video_note", "sticker") else {"chat_id": user_id}
+                kwargs["video_note" if kind == "video_note" else kind] = file_id
+                await senders[kind](**kwargs)
+            else:
+                await query.message.reply_text("⚠️ نوع هذا الملحق غير مدعوم للعرض.")
+        except Exception:
+            logger.exception("Could not send lesson attachment")
+            await query.message.reply_text("❌ تعذر فتح الملحق. حاول مرة أخرى.")
+        return
+
     # ── فتح درس ──
     if data.startswith("op|"):
         lesson_id = int(data.split("|")[1])
@@ -1616,19 +1813,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             subject = lesson.get("subject_name")
             section = lesson.get("section_name")
 
-            keyboard_rows = []
+            attachments = await get_lesson_attachments(user_id, lesson_id)
+            kb = lesson_detail_keyboard(lesson_id, subject, section, attachments)
             if c_type == "link" and content:
-                keyboard_rows.append([
-                    InlineKeyboardButton("🔗 فتح الرابط", url=content)
-                ])
-            keyboard_rows.extend([
-                [InlineKeyboardButton("✏️ تعديل اسم الدرس", callback_data=f"edit_lesson|{lesson_id}")],
-                [InlineKeyboardButton("🔙 رجوع للدروس", callback_data=f"sec|{subject}|{section}")],
-            ])
-            kb = InlineKeyboardMarkup(keyboard_rows)
+                kb_rows = [[InlineKeyboardButton("🔗 فتح الرابط", url=content)]] + kb.inline_keyboard
+                kb = InlineKeyboardMarkup(kb_rows)
 
             if c_type in ("text", "link"):
-                display_content = f"📖 الدرس: {title}\n\n{content}"
+                display_content = f"📖 الدرس: {title}"
+                if content:
+                    display_content += f"\n\n{content}"
+                display_content += f"\n\n📎 الملحقات: {len(attachments)}"
                 await query.message.edit_text(display_content, reply_markup=kb)
             elif c_type == "photo":
                 await query.message.delete()
