@@ -1,9 +1,3 @@
-                await query.message.delete()
-                await context.bot.send_video(
-                    chat_id=user_id,
-                    video=content,
-                    caption=f"📖 **الدرس: {title}**",
-                    reply_markup=kb,
                     parse_mode="Markdown",
                 )
             elif c_type == "document":
